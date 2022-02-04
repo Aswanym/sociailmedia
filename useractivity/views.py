@@ -1,3 +1,4 @@
+from distutils.log import info
 from functools import partial
 from django.http.response import Http404
 from django.shortcuts import render
@@ -15,6 +16,7 @@ from .serializers import (PostSerializer, AllPostViewSerializer,
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import viewsets
 import logging
+import pdb
 # Create your views here.
 
 logging.basicConfig(filename="newfile.log",
@@ -30,8 +32,7 @@ class AllPostViewSet(viewsets.ModelViewSet):
     queryset = Post.objects.all()
 
 
-class PostCreateApiView(generics.CreateAPIView):
-
+class PostCreateApiView(generics.ListCreateAPIView):
     serializer_class = PostSerializer
     parser_classes = [MultiPartParser, FormParser]
     permission_classes = [IsAuthenticated]
@@ -52,12 +53,10 @@ class PostCreateApiView(generics.CreateAPIView):
                             status=status.HTTP_400_BAD_REQUEST)
 
 
-class PostUpdateApiView(generics.UpdateAPIView):
-
+class PostDetailsApiView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = PostSerializer
     parser_classes = [MultiPartParser, FormParser]
     permission_classes = [IsAuthenticated]
-    queryset = Post.objects.all()
 
     def get_object(self, pk):
         try:
@@ -66,6 +65,21 @@ class PostUpdateApiView(generics.UpdateAPIView):
             return Http404
 
     def put(self, request, pk):
+        try:
+            post = self.get_object(pk)
+            data_copy = request.data.copy()
+            data_copy.update(user=request.user.id)
+            serializer = PostSerializer(post, data=data_copy)
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data, status=status.HTTP_200_OK)
+            return Response(serializer.errors,
+                            status=status.HTTP_400_BAD_REQUEST)
+        except:
+            return Response({"message": "Something went wrong"},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+    def patch(self, request, pk):
         try:
             post = self.get_object(pk)
             data_copy = request.data.copy()
@@ -79,14 +93,6 @@ class PostUpdateApiView(generics.UpdateAPIView):
         except:
             return Response({"message": "Something went wrong"},
                             status=status.HTTP_400_BAD_REQUEST)
-
-
-class PostDeleteApiView(generics.DestroyAPIView):
-
-    serializer_class = PostSerializer
-    parser_classes = [MultiPartParser, FormParser]
-    permission_classes = [IsAuthenticated]
-    queryset = Post.objects.all()
 
     def destroy(self, request, pk):
         instance = self.get_object(pk=pk)
@@ -132,20 +138,42 @@ class CommentUpdateApiView(generics.RetrieveUpdateDestroyAPIView):
 
 
 #likes
-
-
-class LikeViewSet(viewsets.ModelViewSet):
+class LikeApiView(generics.ListCreateAPIView):
     serializer_class = LikeSerializer
     permission_classes = [IsAuthenticated]
     queryset = Love.objects.all()
 
-    def post(self, request, pk):
-        print("haiiiii")
-        copy_data = request.data.copy()
-        copy_data.update(post=pk, user=request.user)
-        print(copy_data)
-        serializer = LikeSerializer(data=copy_data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    def is_already_liked(self, pk):
+        # pdb.set_trace()
+        try:
+            if Love.objects.filter(user=self.request.user.id,
+                                   post=pk).exists():
+                return True
+            else:
+                return False
+        except Post.DoesNotExist:
+            return Http404
+
+    def create(self, request, pk):
+        # pdb.set_trace()
+        try:
+            is_liked = self.is_already_liked(pk)
+            if is_liked:
+                return Response(
+                    {
+                        "message": "already liked this post",
+                        "is_liked": is_liked
+                    },
+                    status=status.HTTP_200_OK)
+            else:
+                copy_data = request.data.copy()
+                copy_data.update(post=pk, user=request.user.id)
+                serializer = LikeSerializer(data=copy_data)
+                if serializer.is_valid():
+                    serializer.save()
+                    return Response(serializer.data, status=status.HTTP_200_OK)
+                return Response(serializer.errors,
+                                status=status.HTTP_400_BAD_REQUEST)
+        except:
+            return Response({"message": "Something went wrong"},
+                            status=status.HTTP_400_BAD_REQUEST)

@@ -1,1 +1,3 @@
-2022-01-27 13:26:08,288 Not Found: /favicon.ico
+2022-01-31 13:34:11,185 Bad Request: /auth/register/
+2022-01-31 13:35:17,749 Bad Request: /auth/register/
+2022-01-31 13:38:24,617 Bad Request: /activity/like_post/2/
